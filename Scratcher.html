@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>刮刮卡840连抽净收益概率分布图 (支持区间计算)</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: relative; }
+        h1 { text-align: center; color: #2c3e50; }
+        p.desc { text-align: center; color: #7f8c8d; font-size: 15px; margin-bottom: 30px; line-height: 1.6;}
+        #chart { width: 100%; height: 600px; }
+        .stats-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        .stats-table th, .stats-table td { padding: 12px 15px; border: 1px solid #e2e8f0; text-align: center; }
+        .stats-table th { background-color: #f8fafc; font-weight: 600; color: #475569; }
+        .stats-table tr:hover { background-color: #f1f5f9; }
+        
+        /* 浮动的计算结果面板 */
+        #calc-result {
+            display: none;
+            position: absolute;
+            top: 130px;
+            left: 50px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #d1d5db;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 100;
+            min-width: 200px;
+            backdrop-filter: blur(4px);
+        }
+        #calc-result h3 { margin: 0 0 10px 0; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        .res-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+        .res-name { display: flex; align-items: center; }
+        .res-color { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .res-val { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>五种刮刮卡各抽840次：净收益区间概率图</h1>
+        <p class="desc">
+            <strong>新功能：</strong> 请点击图表右上角的 <span style="background:#eee;padding:2px 6px;border-radius:4px;">横向选择 (LineX)</span> 图标，然后在图表上拖动选取您关心的收益范围。<br>
+            系统会自动为您计算该区间内的总概率。点击右上角 🗑️ 清除选择。
+        </p>
+        
+        <div id="calc-result"></div>
+        <div id="chart"></div>
+
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>刮刮卡名称</th>
+                    <th>单抽成本</th>
+                    <th>840抽总成本</th>
+                    <th>预期总净收益</th>
+                    <th>总收益标准差</th>
+                    <th>不亏本概率 (净收益≥0)</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const data = [
+            { name: "荧幕之外", totalCost: 8400000, expectedNet: -427837.2, stdDev: 342519.6, color: '#3b82f6' },
+            { name: "海特洛快讯", totalCost: 16800000, expectedNet: -745491.6, stdDev: 619277.2, color: '#10b981' },
+            { name: "猫会梦见什么", totalCost: 42000000, expectedNet: -1862204.4, stdDev: 2012265.0, color: '#f59e0b' },
+            { name: "拉面的艺术", totalCost: 42000000, expectedNet: -2085552.0, stdDev: 2070464.0, color: '#ef4444' },
+            { name: "在书本之外", totalCost: 42000000, expectedNet: -2085552.0, stdDev: 2070464.0, color: '#8b5cf6' }
+        ];
+
+        // 高精度正态分布累积概率函数 (CDF)
+        function normalCDF(x, mean, std) {
+            let z = (x - mean) / std;
+            if (z < -8) return 0;
+            if (z > 8) return 1;
+            
+            // Abramowitz and Stegun 近似
+            let sign = z < 0 ? -1 : 1;
+            z = Math.abs(z) / Math.sqrt(2.0);
+            let t = 1.0 / (1.0 + 0.3275911 * z);
+            let y = 1.0 - (((((1.061405429 * t + -1.453152027) * t) + 1.421413741) * t + -0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+            return 0.5 * (1.0 + sign * y);
+        }
+
+        // 填充表格
+        const tbody = document.getElementById('table-body');
+        data.forEach(item => {
+            const winProb = ((1 - normalCDF(0, item.expectedNet, item.stdDev)) * 100).toFixed(2);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:bold; color:${item.color}">${item.name}</td>
+                <td>${(item.totalCost/840).toLocaleString()}</td>
+                <td>${item.totalCost.toLocaleString()}</td>
+                <td style="color: ${item.expectedNet < 0 ? '#ef4444' : '#10b981'}">${item.expectedNet.toLocaleString()}</td>
+                <td>${item.stdDev.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                <td style="font-weight:bold">${winProb}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        const chart = echarts.init(document.getElementById('chart'));
+        const BIN_SIZE = 100000; 
+
+        function generateNormalPoints(mean, std) {
+            const points = [];
+            const min = -8000000;
+            const max = 6000000;
+            const step = 20000; 
+            
+            for (let x = min; x <= max; x += step) {
+                const density = (1 / (std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mean) / std, 2));
+                const prob = density * BIN_SIZE * 100; 
+                points.push([x, prob]);
+            }
+            return points;
+        }
+
+        const seriesData = data.map(item => ({
+            name: item.name,
+            type: 'line',
+            showSymbol: false,
+            smooth: true,
+            lineStyle: { width: 3 },
+            itemStyle: { color: item.color },
+            areaStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: item.color + '80' },
+                    { offset: 1, color: item.color + '10' }
+                ])
+            },
+            data: generateNormalPoints(item.expectedNet, item.stdDev)
+        }));
+
+        const option = {
+            toolbox: {
+                feature: {
+                    brush: {
+                        type: ['lineX', 'clear'],
+                        title: { lineX: '横向选择区间', clear: '清除选择' }
+                    }
+                },
+                right: '5%',
+                top: 0
+            },
+            brush: {
+                xAxisIndex: 'all',
+                brushLink: 'all',
+                outOfBrush: { colorAlpha: 0.2 } // 未选中区域变暗
+            },
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    let xVal = params[0].value[0];
+                    let rangeStart = (xVal - BIN_SIZE/2) / 10000;
+                    let rangeEnd = (xVal + BIN_SIZE/2) / 10000;
+                    let res = `<div style="margin-bottom: 5px;"><strong>收益区间: ${rangeStart.toFixed(1)}万 ~ ${rangeEnd.toFixed(1)}万</strong></div>`;
+                    
+                    params.sort((a, b) => b.value[1] - a.value[1]);
+                    params.forEach(p => {
+                        if (p.value[1] > 0.01) {
+                            res += `<span style="color:${p.color}">●</span> ${p.seriesName}: ${p.value[1].toFixed(2)}%<br/>`;
+                        }
+                    });
+                    return res;
+                }
+            },
+            legend: {
+                data: data.map(d => d.name),
+                top: 0,
+                left: 'center',
+                textStyle: { fontSize: 14 }
+            },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: {
+                type: 'value',
+                name: '840抽总净收益',
+                nameLocation: 'middle',
+                nameGap: 30,
+                axisLabel: { formatter: (val) => val / 10000 + '万' },
+                splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+            },
+            yAxis: {
+                type: 'value',
+                name: '落在该10万元区间的概率 (%)',
+                axisLabel: { formatter: '{value}%' },
+                splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+            },
+            series: [
+                ...seriesData,
+                {
+                    type: 'line',
+                    markLine: {
+                        symbol: ['none', 'none'],
+                        label: { formatter: '盈亏平衡线', position: 'start', color: '#ef4444' },
+                        lineStyle: { color: '#ef4444', type: 'solid', width: 2 },
+                        data: [{ xAxis: 0 }]
+                    }
+                }
+            ]
+        };
+
+        chart.setOption(option);
+        
+        // 监听框选事件
+        chart.on('brushEnd', function (params) {
+            const resBox = document.getElementById('calc-result');
+            
+            // 如果没有选中任何区域，则隐藏计算框
+            if (!params.areas || params.areas.length === 0) {
+                resBox.style.display = 'none';
+                return;
+            }
+
+            // 获取选中的 X 轴范围
+            const range = params.areas[0].coordRange;
+            const x1 = Math.min(range[0], range[1]);
+            const x2 = Math.max(range[0], range[1]);
+            
+            let html = `<h3>选定区间：${(x1/10000).toFixed(1)}万 ~ ${(x2/10000).toFixed(1)}万</h3>`;
+            
+            data.forEach(item => {
+                // 使用正态分布的累积概率函数计算面积 (即绝对概率)
+                const p1 = normalCDF(x1, item.expectedNet, item.stdDev);
+                const p2 = normalCDF(x2, item.expectedNet, item.stdDev);
+                const exactProb = Math.abs(p2 - p1) * 100;
+                
+                html += `
+                    <div class="res-row">
+                        <span class="res-name"><span class="res-color" style="background:${item.color}"></span>${item.name}</span>
+                        <span class="res-val" style="color:${item.color}">${exactProb.toFixed(2)}%</span>
+                    </div>
+                `;
+            });
+            
+            resBox.innerHTML = html;
+            resBox.style.display = 'block';
+        });
+
+        window.addEventListener('resize', () => chart.resize());
+    </script>
+</body>
+</html>
