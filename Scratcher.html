@@ -1,30 +1,37 @@
 
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" id="html-tag">
 <head>
     <meta charset="UTF-8">
-    <title>刮刮卡净收益概率分布图 (支持自定义抽数)</title>
+    <title>刮刮卡净收益概率分布图 / Scratch Card Profit Simulator</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: relative; }
-        h1 { text-align: center; color: #2c3e50; }
-        p.desc { text-align: center; color: #7f8c8d; font-size: 15px; margin-bottom: 20px; line-height: 1.6;}
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
+        h1 { text-align: center; color: #2c3e50; margin: 0; flex-grow: 1;}
+        .lang-switch { padding: 8px 16px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: #334155; transition: 0.2s;}
+        .lang-switch:hover { background: #cbd5e1; }
         
-        /* 控制面板样式 */
-        .control-panel { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 1px solid #e2e8f0; display: flex; justify-content: center; align-items: center; gap: 15px;}
+        .control-panel { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 1px solid #e2e8f0; display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap;}
         .control-panel label { font-weight: 600; color: #334155; font-size: 16px;}
         input[type="range"] { width: 300px; cursor: pointer; }
-        input[type="number"] { width: 100px; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 16px; text-align: center;}
+        input[type="number"], select { width: 100px; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 16px; text-align: center;}
         
         #chart { width: 100%; height: 600px; }
-        .stats-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        
+        /* 教程区块 */
+        .tutorial-box { background: #e0f2fe; border-left: 5px solid #3b82f6; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .tutorial-box h3 { margin: 0 0 10px 0; color: #0284c7; display: flex; align-items: center; gap: 8px;}
+        .tutorial-box p { margin: 5px 0; font-size: 14px; color: #0c4a6e; line-height: 1.5; }
+
+        .stats-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         .stats-table th, .stats-table td { padding: 12px 15px; border: 1px solid #e2e8f0; text-align: center; }
         .stats-table th { background-color: #f8fafc; font-weight: 600; color: #475569; }
         .stats-table tr:hover { background-color: #f1f5f9; }
         
         #calc-result {
-            display: none; position: absolute; top: 220px; left: 60px;
+            display: none; position: absolute; top: 250px; left: 60px;
             background: rgba(255, 255, 255, 0.95); border: 1px solid #d1d5db;
             padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             z-index: 100; min-width: 200px; backdrop-filter: blur(4px);
@@ -38,32 +45,47 @@
 </head>
 <body>
     <div class="container">
-        <h1>刮刮卡净收益概率分布：动态模拟器</h1>
+        <div class="header-top">
+            <div style="width: 80px;"></div> <!-- Spacer for centering -->
+            <h1 id="t-main-title">刮刮卡净收益概率分布：动态模拟器</h1>
+            <button class="lang-switch" onclick="toggleLanguage()" id="btn-lang">English</button>
+        </div>
         
         <div class="control-panel">
-            <label for="draws-slider">设定抽奖次数 (N):</label>
+            <label for="draws-slider" id="t-draws-label">设定抽奖次数 (N):</label>
             <input type="range" id="draws-slider" min="10" max="10000" step="10" value="840">
             <input type="number" id="draws-input" min="1" max="100000" value="840">
-            <span>次</span>
+            <span id="t-draws-unit">次</span>
+            
+            <label for="bin-size" style="margin-left: 20px;" id="t-bin-label">统计区间 (Bin):</label>
+            <select id="bin-size">
+                <option value="10000" id="t-bin-1">1万 (10k)</option>
+                <option value="50000" id="t-bin-5">5万 (50k)</option>
+                <option value="100000" selected id="t-bin-10">10万 (100k)</option>
+                <option value="500000" id="t-bin-50">50万 (500k)</option>
+            </select>
         </div>
 
-        <p class="desc">
-            拖动上方滑块，观察**大数定律**的魔力：抽数越多，钟形曲线越“矮胖”，预期总亏损越深，但小概率翻盘的机会也会发生变化。<br>
-            依然可以使用图表右上角的 <span style="background:#eee;padding:2px 6px;border-radius:4px;">横向选择 (LineX)</span> 框选任意区间，计算精确概率。
-        </p>
-        
         <div id="calc-result"></div>
         <div id="chart"></div>
+
+        <!-- 教程区块放在表格上方 -->
+        <div class="tutorial-box">
+            <h3 id="t-tut-title">📚 使用教程 / Usage Tutorial</h3>
+            <p id="t-tut-1">1. <b>设定抽数：</b>拖动滑块或输入数字，观察不同抽奖次数下的整体亏损/盈利概率分布变化。次数越多，大数定律越明显。</p>
+            <p id="t-tut-2">2. <b>统计区间：</b>当抽奖次数较少（<100次）时，曲线可能极度集中。请将“统计区间”调小（如1万）以获取精确的局部概率显示。</p>
+            <p id="t-tut-3">3. <b>框选测算区间概率：</b>点击图表右上角的“<b>横向选择 (LineX)</b>”图标，在图表上长按并拖动，框选出您关心的收益范围（例如-100万到-50万），系统会自动计算出该绝对区间的精准概率面积。</p>
+        </div>
 
         <table class="stats-table">
             <thead>
                 <tr>
-                    <th>刮刮卡名称</th>
-                    <th>单抽成本</th>
-                    <th><span id="tbl-n">840</span>抽总成本</th>
-                    <th>预期总净收益</th>
-                    <th>总收益标准差</th>
-                    <th>不亏本概率 (净收益≥0)</th>
+                    <th id="th-name">刮刮卡名称</th>
+                    <th id="th-cost">单抽成本</th>
+                    <th id="th-total-cost">总成本</th>
+                    <th id="th-exp-net">预期总净收益</th>
+                    <th id="th-std">总收益标准差</th>
+                    <th id="th-prob">不亏本概率 (净收益≥0)</th>
                 </tr>
             </thead>
             <tbody id="table-body">
@@ -72,20 +94,77 @@
     </div>
 
     <script>
-        // 单次抽奖的基础数据 (期望与标准差)
+        // 国际化字典
+        const i18n = {
+            zh: {
+                mainTitle: "午夜猫刊亭刮刮卡净收益概率分布：动态模拟器",
+                langBtn: "English",
+                drawsLabel: "设定抽奖次数 (N):",
+                drawsUnit: "次",
+                binLabel: "统计区间 (Bin):",
+                bin1: "1万方斯", bin5: "5万方斯", bin10: "10万方斯", bin50: "50万方斯",
+                tutTitle: "📚 使用教程",
+                tut1: "1. <b>设定抽数：</b>拖动滑块或输入数字，观察不同抽奖次数下的整体亏损/盈利概率分布变化。次数越多，大数定律越明显。",
+                tut2: "2. <b>统计区间：</b>当抽奖次数较少（<100次）时，曲线可能极度集中。请将“统计区间”调小（如1万元）以获取精确的局部概率显示。",
+                tut3: "3. <b>框选测算区间概率：</b>点击图表右上角的“<b>横向选择 (LineX)</b>”图标，在图表上长按并拖动，框选出您关心的收益范围，系统会自动计算出该绝对区间的精准概率面积。",
+                thName: "刮刮卡名称",
+                thCost: "单抽成本",
+                thTotalCost: "{n}抽总成本",
+                thExpNet: "预期总净收益",
+                thStd: "总收益标准差",
+                thProb: "不亏本概率 (净收益≥0)",
+                cards: {
+                    c1: "荧幕之外", c2: "海特洛快讯", c3: "猫会梦见什么", c4: "拉面的艺术", c5: "在书本之外"
+                },
+                chart: {
+                    lineX: "横向选择区间", clear: "清除选择", breakEven: "不亏本",
+                    xAxis: "{n}抽总净收益", yAxis: "落在该【{b}】区间的概率 (%)",
+                    selRange: "选定区间", profitRange: "收益区间"
+                }
+            },
+            en: {
+                mainTitle: "Midnight Catzebo Card Net Profit Probability: Simulator",
+                langBtn: "中文",
+                drawsLabel: "Set Number of Draws (N):",
+                drawsUnit: "Draws",
+                binLabel: "Statistics Bin Size:",
+                bin1: "10k Fons", bin5: "50k Fons", bin10: "100k Fons", bin50: "500k Fons",
+                tutTitle: "📚 Usage Tutorial",
+                tut1: "1. <b>Set Draws:</b> Drag the slider or enter a number to observe how the profit/loss distribution changes. The Law of Large Numbers kicks in as N increases.",
+                tut2: "2. <b>Bin Size:</b> For a small number of draws (<100), the curve might be extremely sharp. Reduce the 'Bin Size' (e.g., 10k) for accurate local probability rendering.",
+                tut3: "3. <b>Select & Calculate Area:</b> Click the '<b>LineX Select</b>' icon in the top right of the chart. Click and drag over the chart to select a specific profit range (e.g., -1M to -500k). The system will integrate and calculate the exact exact probability area.",
+                thName: "Card Name",
+                thCost: "Cost / Draw",
+                thTotalCost: "Total Cost ({n} Draws)",
+                thExpNet: "Expected Total Net Profit",
+                thStd: "Total Profit Std Dev",
+                thProb: "Break Even Prob (Net ≥ 0)",
+                cards: {
+                    c1: "Beyond the Screen", c2: "Hethereau Daily", c3: "What Do Cats Dream Of?", c4: "The Art of Ramen", c5: "Beyond the Book"
+                },
+                chart: {
+                    lineX: "LineX Select", clear: "Clear Selection", breakEven: "Break Even",
+                    xAxis: "Total Net Profit for {n} Draws", yAxis: "Probability falling in [{b}] bin (%)",
+                    selRange: "Selected Range", profitRange: "Profit Range"
+                }
+            }
+        };
+
+        let lang = 'zh';
+
         const baseData = [
-            { name: "荧幕之外", cost: 10000, netMean: -509.33, stdDev: 11818.06, color: '#3b82f6' },
-            { name: "海特洛快讯", cost: 20000, netMean: -887.49, stdDev: 21367.12, color: '#10b981' },
-            { name: "猫会梦见什么", cost: 50000, netMean: -2216.91, stdDev: 69428.84, color: '#f59e0b' },
-            { name: "拉面的艺术", cost: 50000, netMean: -2482.80, stdDev: 71436.92, color: '#ef4444' },
-            { name: "在书本之外", cost: 50000, netMean: -2482.80, stdDev: 71436.92, color: '#8b5cf6' }
+            { id: 'c1', cost: 10000, netMean: -509.33, stdDev: 11818.06, color: '#3b82f6' },
+            { id: 'c2', cost: 20000, netMean: -887.49, stdDev: 21367.12, color: '#10b981' },
+            { id: 'c3', cost: 50000, netMean: -2216.91, stdDev: 69428.84, color: '#f59e0b' },
+            { id: 'c4', cost: 50000, netMean: -2482.80, stdDev: 71436.92, color: '#ef4444' },
+            { id: 'c5', cost: 50000, netMean: -2482.80, stdDev: 71436.92, color: '#8b5cf6' }
         ];
 
         let currentN = 840;
+        let currentBinSize = 100000;
         let currentCalculatedData = [];
-        const BIN_SIZE = 100000; // 依然以10万作为一个显示区间
+        const chart = echarts.init(document.getElementById('chart'));
 
-        // 高精度正态分布累积概率函数 (CDF)
         function normalCDF(x, mean, std) {
             let z = (x - mean) / std;
             if (z < -8) return 0;
@@ -97,22 +176,72 @@
             return 0.5 * (1.0 + sign * y);
         }
 
-        const chart = echarts.init(document.getElementById('chart'));
+        function formatAxis(val) {
+            if (lang === 'zh') {
+                return (val / 10000).toFixed(1).replace('.0', '') + '万';
+            } else {
+                if (Math.abs(val) >= 1000000) return (val / 1000000).toFixed(1).replace('.0', '') + 'M';
+                if (Math.abs(val) >= 1000) return (val / 1000).toFixed(0) + 'k';
+                return val.toString();
+            }
+        }
 
-        function updateChartAndTable(N) {
-            document.getElementById('tbl-n').innerText = N;
+        function getBinText(binVal) {
+            if (binVal == 10000) return i18n[lang].bin1;
+            if (binVal == 50000) return i18n[lang].bin5;
+            if (binVal == 100000) return i18n[lang].bin10;
+            if (binVal == 500000) return i18n[lang].bin50;
+            return binVal;
+        }
+
+        function updateTexts() {
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            document.getElementById('t-main-title').innerText = i18n[lang].mainTitle;
+            document.getElementById('btn-lang').innerText = i18n[lang].langBtn;
+            document.getElementById('t-draws-label').innerText = i18n[lang].drawsLabel;
+            document.getElementById('t-draws-unit').innerText = i18n[lang].drawsUnit;
+            document.getElementById('t-bin-label').innerText = i18n[lang].binLabel;
             
-            // 根据抽数N，计算总期望与总标准差
+            document.getElementById('t-bin-1').innerText = i18n[lang].bin1;
+            document.getElementById('t-bin-5').innerText = i18n[lang].bin5;
+            document.getElementById('t-bin-10').innerText = i18n[lang].bin10;
+            document.getElementById('t-bin-50').innerText = i18n[lang].bin50;
+
+            document.getElementById('t-tut-title').innerHTML = i18n[lang].tutTitle;
+            document.getElementById('t-tut-1').innerHTML = i18n[lang].tut1;
+            document.getElementById('t-tut-2').innerHTML = i18n[lang].tut2;
+            document.getElementById('t-tut-3').innerHTML = i18n[lang].tut3;
+
+            document.getElementById('th-name').innerText = i18n[lang].thName;
+            document.getElementById('th-cost').innerText = i18n[lang].thCost;
+            document.getElementById('th-total-cost').innerText = i18n[lang].thTotalCost.replace('{n}', currentN);
+            document.getElementById('th-exp-net').innerText = i18n[lang].thExpNet;
+            document.getElementById('th-std').innerText = i18n[lang].thStd;
+            document.getElementById('th-prob').innerText = i18n[lang].thProb;
+        }
+
+        function toggleLanguage() {
+            lang = lang === 'zh' ? 'en' : 'zh';
+            updateTexts();
+            updateChartAndTable();
+            // hide brush selection
+            chart.dispatchAction({ type: 'brush', areas: [] });
+            document.getElementById('calc-result').style.display = 'none';
+        }
+
+        function updateChartAndTable() {
+            updateTexts();
+            
             currentCalculatedData = baseData.map(item => ({
-                name: item.name,
+                id: item.id,
+                name: i18n[lang].cards[item.id],
                 cost: item.cost,
-                totalCost: item.cost * N,
-                expectedNet: item.netMean * N,
-                stdDev: item.stdDev * Math.sqrt(N),
+                totalCost: item.cost * currentN,
+                expectedNet: item.netMean * currentN,
+                stdDev: item.stdDev * Math.sqrt(currentN),
                 color: item.color
             }));
 
-            // 渲染表格
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
             currentCalculatedData.forEach(item => {
@@ -129,23 +258,21 @@
                 tbody.appendChild(tr);
             });
 
-            // 动态决定图表的 X轴 范围
             let minX = Math.min(...currentCalculatedData.map(d => d.expectedNet - 3.5 * d.stdDev));
             let maxX = Math.max(...currentCalculatedData.map(d => d.expectedNet + 3.5 * d.stdDev));
             
-            // 确保盈亏平衡线(0)在图表中可见
-            if (minX > -100000) minX = -100000;
-            if (maxX < 100000) maxX = 100000;
+            if (minX > -50000) minX = -50000;
+            if (maxX < 50000) maxX = 50000;
 
-            const step = (maxX - minX) / 250; 
+            const step = (maxX - minX) / 300; 
 
-            // 生成曲线数据
             const seriesData = currentCalculatedData.map(item => {
                 const points = [];
                 for (let x = minX; x <= maxX; x += step) {
-                    const density = (1 / (item.stdDev * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - item.expectedNet) / item.stdDev, 2));
-                    const prob = density * BIN_SIZE * 100; 
-                    points.push([x, prob]);
+                    let p1 = normalCDF(x - currentBinSize/2, item.expectedNet, item.stdDev);
+                    let p2 = normalCDF(x + currentBinSize/2, item.expectedNet, item.stdDev);
+                    let exactProb = Math.abs(p2 - p1) * 100;
+                    points.push([x, exactProb]);
                 }
                 return {
                     name: item.name,
@@ -164,22 +291,34 @@
                 };
             });
 
-            // ECharts 配置
+            let binTitle = getBinText(currentBinSize);
+
             const option = {
-                toolbox: { feature: { brush: { type: ['lineX', 'clear'], title: { lineX: '横向选择区间', clear: '清除选择' } } }, right: '5%', top: 0 },
+                toolbox: { 
+                    feature: { 
+                        brush: { 
+                            type: ['lineX', 'clear'], 
+                            title: { 
+                                lineX: i18n[lang].chart.lineX, 
+                                clear: i18n[lang].chart.clear 
+                            } 
+                        } 
+                    }, 
+                    right: '5%', top: 0 
+                },
                 brush: { xAxisIndex: 'all', brushLink: 'all', outOfBrush: { colorAlpha: 0.2 } },
                 tooltip: {
                     trigger: 'axis',
                     formatter: function (params) {
                         let xVal = params[0].value[0];
-                        let rangeStart = (xVal - BIN_SIZE/2) / 10000;
-                        let rangeEnd = (xVal + BIN_SIZE/2) / 10000;
-                        let res = `<div style="margin-bottom: 5px;"><strong>收益区间: ${rangeStart.toFixed(1)}万 ~ ${rangeEnd.toFixed(1)}万</strong></div>`;
+                        let rangeStart = xVal - currentBinSize/2;
+                        let rangeEnd = xVal + currentBinSize/2;
+                        let res = `<div style="margin-bottom: 5px;"><strong>${i18n[lang].chart.profitRange}: ${formatAxis(rangeStart)} ~ ${formatAxis(rangeEnd)}</strong></div>`;
                         
                         params.sort((a, b) => b.value[1] - a.value[1]);
                         params.forEach(p => {
-                            if (p.value[1] > 0.001) {
-                                res += `<span style="color:${p.color}">●</span> ${p.seriesName}: ${p.value[1].toFixed(3)}%<br/>`;
+                            if (p.value[1] > 0.0001) {
+                                res += `<span style="color:${p.color}">●</span> ${p.seriesName}: ${p.value[1].toFixed(2)}%<br/>`;
                             }
                         });
                         return res;
@@ -188,24 +327,28 @@
                 legend: { data: currentCalculatedData.map(d => d.name), top: 0, left: 'center', textStyle: { fontSize: 14 } },
                 grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
                 xAxis: {
-                    type: 'value', name: `${N}抽总净收益`, nameLocation: 'middle', nameGap: 30,
-                    axisLabel: { formatter: (val) => (val / 10000).toFixed(0) + '万' },
+                    type: 'value', 
+                    name: i18n[lang].chart.xAxis.replace('{n}', currentN), 
+                    nameLocation: 'middle', nameGap: 30,
+                    axisLabel: { formatter: (val) => formatAxis(val) },
                     min: minX, max: maxX,
                     splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
                 },
                 yAxis: {
-                    type: 'value', name: '落在该10万元区间的概率 (%)',
+                    type: 'value', 
+                    name: i18n[lang].chart.yAxis.replace('{b}', binTitle),
                     axisLabel: { formatter: '{value}%' },
-                    splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+                    splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } },
+                    max: function (value) { return value.max > 100 ? 100 : null; }
                 },
-                animationDurationUpdate: 300, // 动画过渡效果
+                animationDurationUpdate: 300,
                 series: [
                     ...seriesData,
                     {
                         type: 'line',
                         markLine: {
                             symbol: ['none', 'none'],
-                            label: { formatter: '不亏本', position: 'start', color: '#ef4444' },
+                            label: { formatter: i18n[lang].chart.breakEven, position: 'start', color: '#ef4444' },
                             lineStyle: { color: '#ef4444', type: 'solid', width: 2 },
                             data: [{ xAxis: 0 }]
                         }
@@ -213,17 +356,13 @@
                 ]
             };
 
-            // 清除之前的选择框结果
-            chart.dispatchAction({ type: 'brush', areas: [] });
-            document.getElementById('calc-result').style.display = 'none';
-
             chart.setOption(option, { replaceMerge: ['xAxis', 'yAxis', 'series'] });
         }
 
-        // 初始化
-        updateChartAndTable(currentN);
+        // Initialize
+        updateTexts();
+        updateChartAndTable();
 
-        // 监听框选事件
         chart.on('brushEnd', function (params) {
             const resBox = document.getElementById('calc-result');
             if (!params.areas || params.areas.length === 0) {
@@ -234,7 +373,7 @@
             const x1 = Math.min(range[0], range[1]);
             const x2 = Math.max(range[0], range[1]);
             
-            let html = `<h3>选定区间：${(x1/10000).toFixed(1)}万 ~ ${(x2/10000).toFixed(1)}万</h3>`;
+            let html = `<h3>${i18n[lang].chart.selRange}：${formatAxis(x1)} ~ ${formatAxis(x2)}</h3>`;
             
             currentCalculatedData.forEach(item => {
                 const p1 = normalCDF(x1, item.expectedNet, item.stdDev);
@@ -253,21 +392,22 @@
 
         window.addEventListener('resize', () => chart.resize());
 
-        // 绑定输入事件
-        const slider = document.getElementById('draws-slider');
-        const numberInput = document.getElementById('draws-input');
-
-        slider.addEventListener('input', (e) => {
-            let val = parseInt(e.target.value);
-            numberInput.value = val;
-            updateChartAndTable(val);
+        document.getElementById('draws-slider').addEventListener('input', (e) => {
+            currentN = parseInt(e.target.value);
+            document.getElementById('draws-input').value = currentN;
+            updateChartAndTable();
         });
 
-        numberInput.addEventListener('change', (e) => {
-            let val = parseInt(e.target.value);
-            if (isNaN(val) || val < 1) val = 1;
-            slider.value = val; // slider max is 10000, if input > 10000 slider caps visually but chart still works
-            updateChartAndTable(val);
+        document.getElementById('draws-input').addEventListener('change', (e) => {
+            currentN = parseInt(e.target.value);
+            if (isNaN(currentN) || currentN < 1) currentN = 1;
+            document.getElementById('draws-slider').value = currentN;
+            updateChartAndTable();
+        });
+
+        document.getElementById('bin-size').addEventListener('change', (e) => {
+            currentBinSize = parseInt(e.target.value);
+            updateChartAndTable();
         });
     </script>
 </body>
